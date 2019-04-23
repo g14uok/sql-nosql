@@ -1,0 +1,134 @@
+---
+title: "SQL-NoSQL analysis"
+author: "Kathleen DeBrota"
+date: "April 21, 2019"
+output: html_document
+---
+
+This document is for some analysis and visualizations of the credit card data set for SQL/NoSQL final project. 
+
+Guiding questions: What kind of person is most likely to default on their credit card payments? What demographic factor(s) are most important in predicting this? 
+
+1. Are younger people more or less likely to default on payments?
+2. Are higher-educated people more or less likely to default?
+3. How is credit limit associated with likelihood to default? How is credit limit associated with age and education level?
+4. At what bill value is someone more likely to default on their payment? Are there any demographic trends that emerge there?
+5. Is the amount of one single bill more influential than whether or not the  person delayed their last bill in deciding whether someone will default?
+
+```{r}
+library(readxl)
+library(dplyr)
+library(lattice)
+library(ggplot2)
+```
+
+```{r}
+setwd("C:/Users/kdebr/Documents/GitHub/sql-nosql")
+credit<-read.csv(file='cleanData.csv')
+head(credit)
+```
+Exploratory views of the data.
+```{r}
+summary(credit)
+```
+More of the respondents were women (18,112 vs 11,888 men). The majority were undergraduates (14,030) with some graduates (10,585) and fewer who were high-school educated, uneducated, unknown, or 'other'. The majority were not married: 15,964, but many were married: 13,659. A few were 'other' or unknown for marital status. The mean age of the respondents was 35.49 years, with the youngest participants at 21 years and oldest at 79 years. 
+```{r}
+#view thistograms of demographic data
+hist(credit$AGE, main='Histogram of age distribution of respondents', ylab='Frequency', xlab='Age in years')
+
+#Boxplot of the payment status for each of the 6 payments.
+boxplot(credit$PAY_1, credit$PAY_2, credit$PAY_3, credit$PAY_4, credit$PAY_5, credit$PAY_6, main='Payment status of each of 6 payments', ylab='Status code', xlab='Payment number')
+
+#Boxplot of payment amount for each of 6 payments.
+boxplot(credit$BILL_AMT1, credit$BILL_AMT2, credit$BILL_AMT3, credit$BILL_AMT4, credit$BILL_AMT5, credit$BILL_AMT6, main='Bill amount of each of 6 payments', ylab='Bill amount (NT dollars)', xlab='Payment number')
+
+
+
+```
+Separate out just those who defaulted and who did not. Visualize general demographic differences
+```{r}
+will_default<-subset(credit, DEFAULT_PAYMENT_NEXT_MONTH==1)
+z3countdef<-table(will_default$AGE, will_default$MARRIAGE)
+
+will_pay<-subset(credit, DEFAULT_PAYMENT_NEXT_MONTH==0)
+#countpay<- table(will_pay$AGE, will_pay$MARRIAGE)
+
+credit$MARRIAGE<-as.factor(credit$MARRIAGE)
+credit$DEFAULT_PAYMENT_NEXT_MONTH <-as.factor(credit$DEFAULT_PAYMENT_NEXT_MONTH)
+
+par(mfrow=c(1,2))
+#View ages of those who did and did not default.
+hist(will_default$AGE, main='Age distribution: Will default', xlab='Age (years)', ylab='Frequency')
+hist(will_pay$AGE, main='Age distribution: Will not default', xlab='Age(years)', ylab='Frequency')
+
+#----------------------------------------------
+
+#View marital status of those who did/didn't default.
+par(mfrow=c(1,1))
+marriage <-credit %>% group_by(MARRIAGE, DEFAULT_PAYMENT_NEXT_MONTH) %>% count(DEFAULT_PAYMENT_NEXT_MONTH)
+marriage #this shows the counts of people per group.
+
+barchart(marriage$n~marriage$MARRIAGE, ylab='Number of people', xlab='Marriage status', main='Influence of marital status on default payments', groups=marriage$DEFAULT_PAYMENT_NEXT_MONTH, auto.key=list(space='right', title='Default payment \nstatus', cex.title=0.8))
+
+
+#View education status of those who did/didn not default.
+education <-credit %>% group_by(EDUCATION, DEFAULT_PAYMENT_NEXT_MONTH) %>% count(DEFAULT_PAYMENT_NEXT_MONTH)
+education #this shows the counts of people per group.
+
+barchart(education$n~education$EDUCATION, ylab='Number of people', xlab='Education status', main='Influence of educational status on default payments', groups=education$DEFAULT_PAYMENT_NEXT_MONTH, auto.key=list(space='right', title='Default payment \nstatus', cex.title=0.8))
+
+
+#What about the link between total bill amount and default status, or total bill amount and how many months they pushed back the payment?
+
+
+
+
+```
+1. Are younger people more or less likely to default on payments?
+```{r}
+#Check normalcy of the data
+normalityTest(AGE ~ DEFAULT_PAYMENT_NEXT_MONTH, test="ad.test", data=credit)
+#The data are normally distributed (p<<0.75)
+#Check heteroscedasticity
+with(credit, tapply(AGE, DEFAULT_PAYMENT_NEXT_MONTH, var, na.rm=TRUE))
+bartlett.test(AGE ~ DEFAULT_PAYMENT_NEXT_MONTH, data=credit)
+#Data are homoscedastic; p<<0.05
+
+#ANOVA to determine difference of mean age in each group (default vs not default)
+AnovaModel.1 <- aov(AGE ~ DEFAULT_PAYMENT_NEXT_MONTH, data=credit)
+summary(AnovaModel.1)
+with(credit, numSummary(AGE, groups=DEFAULT_PAYMENT_NEXT_MONTH, 
+  statistics=c("mean", "sd")))
+
+```
+```{r}
+#Tukey test for age difference
+age_signif<-TukeyHSD(AnovaModel.1)
+age_signif
+```
+The above statistical analysis shows us that there is a significant difference in mean age between 'default' and 'will not default' groups: a small difference of 0.3084 years (about 3.7 months), with the slightly younger group tending to default on their payments more often than the slightly older group. 
+
+
+2. Are higher-educated people more or less likely to default?
+```{r}
+
+#Check for normality
+
+#Check for homoscedasticity
+
+```
+3. How is credit limit associated with likelihood to default? How is credit limit associated with age and education level?
+```{r}
+
+```
+
+4. At what bill value is someone more likely to default on their payment? Are there any demographic trends that emerge there?
+```{r}
+
+```
+5. Is the amount of one single bill more influential than whether or not the  person delayed their last bill in deciding whether someone will default?
+```{r}
+
+```
+
+6. How does marital status affect probability of defaulting?
