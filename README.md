@@ -26,6 +26,29 @@ Kathleen: Structuring research questions, visualizations (R), statistics based o
 - size, shape, content, datatypes of data; meaning of each column, what the values represent
 - source of data (kaggle link), why it is useful/why it was collected and when, etc
 
+## Pre-Processing the data
+- Dataset does not contain any missing values.
+
+- Converted gender values in "SEX" column from:
+      1 -> male
+      2 -> female
+- Converted the values in "MARRIAGE" column from:
+      0 -> unknown
+      1 -> married
+      2 -> single
+      3 -> others
+- Converted the values in "EDUCATION" column from:
+      0 -> uneducated
+      1 -> graduate
+      2 -> under graduate
+      3 -> high school
+      4 -> others
+      5 -> unknown
+      6 -> unknown
+
+- Renamed the column "PAY_0" to "PAY_1" 
+- Renamed the column "default.payment.next.month" to "DEFAULT_PAYMENT_NEXT_MONTH" 
+
 ## Guiding research questions and queries to write to answer them:
 - Overarching question is, "Who (what kind of person) is most likely to delay payment on their credit card bill and/or default their payments?"
 - Are younger people more or less likely to default on their payments?
