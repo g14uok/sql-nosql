@@ -21,6 +21,7 @@ library(dplyr)
 library(lattice)
 library(rcompanion)
 library(ggplot2)
+library(Rcmdr)
 ```
 
 ```{r}
