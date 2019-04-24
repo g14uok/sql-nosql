@@ -19,6 +19,7 @@ Guiding questions: What kind of person is most likely to default on their credit
 library(readxl)
 library(dplyr)
 library(lattice)
+library(rcompanion)
 library(ggplot2)
 ```
 
@@ -68,14 +69,15 @@ par(mfrow=c(1,1))
 marriage <-credit %>% group_by(MARRIAGE, DEFAULT_PAYMENT_NEXT_MONTH) %>% count(DEFAULT_PAYMENT_NEXT_MONTH)
 marriage #this shows the counts of people per group.
 
-barchart(marriage$n~marriage$MARRIAGE, ylab='Number of people', xlab='Marriage status', main='Influence of marital status on default payments', groups=marriage$DEFAULT_PAYMENT_NEXT_MONTH, auto.key=list(space='right', title='Default payment \nstatus', cex.title=0.8))
+barchart(marriage$n~marriage$DEFAULT_PAYMENT_NEXT_MONTH, ylab='Number of people', xlab='Payment default status', main='Influence of marital status on default payments', groups=marriage$MARRIAGE, auto.key=list(space='right', title='Marriage status', cex.title=0.8))
 
+#----------------------------------------------
 
 #View education status of those who did/didn not default.
 education <-credit %>% group_by(EDUCATION, DEFAULT_PAYMENT_NEXT_MONTH) %>% count(DEFAULT_PAYMENT_NEXT_MONTH)
 education #this shows the counts of people per group.
 
-barchart(education$n~education$EDUCATION, ylab='Number of people', xlab='Education status', main='Influence of educational status on default payments', groups=education$DEFAULT_PAYMENT_NEXT_MONTH, auto.key=list(space='right', title='Default payment \nstatus', cex.title=0.8))
+barchart(education$n~education$DEFAULT_PAYMENT_NEXT_MONTH, ylab='Number of people', xlab='Payment default status', main='Influence of educational status on default payments', groups=education$EDUCATION, auto.key=list(space='right', title='Educational status', cex.title=0.8))
 
 
 #What about the link between total bill amount and default status, or total bill amount and how many months they pushed back the payment?
@@ -94,6 +96,7 @@ with(credit, tapply(AGE, DEFAULT_PAYMENT_NEXT_MONTH, var, na.rm=TRUE))
 bartlett.test(AGE ~ DEFAULT_PAYMENT_NEXT_MONTH, data=credit)
 #Data are homoscedastic; p<<0.05
 
+
 #ANOVA to determine difference of mean age in each group (default vs not default)
 AnovaModel.1 <- aov(AGE ~ DEFAULT_PAYMENT_NEXT_MONTH, data=credit)
 summary(AnovaModel.1)
@@ -111,12 +114,24 @@ The above statistical analysis shows us that there is a significant difference i
 
 2. Are higher-educated people more or less likely to default?
 ```{r}
+#Performing pearson Chi-sq test of independence - 
+#Actually no, performing the fisher's exact test, since it works better for smaller 'unbalanced' data such as this where some columns have 0 entries.
 
-#Check for normality
+#First tabulating the contingency table of the two variables
+educ_conting=table(credit$EDUCATION, credit$DEFAULT_PAYMENT_NEXT_MONTH)
+educ_conting #This gives the counts of each category in each 'axis' specified
+#Null hypothesis: "education level is independent of whether or not someone will default, at the 0.05 significance level."
 
-#Check for homoscedasticity
+fisher.test(educ_conting, simulate.p.value=TRUE)
 
+#pairwise test
+pairwiseNominalIndependence(educ_conting)
 ```
+The results of the Fisher's Exact test show that there is a highly significant interaction between education level and probability that someone will default on their credit card bill (p<<<0.05). 
+
+The pairwise post-hoc test shows significant differences in likelihood of defaulting on credit payments between nearly every pair of education levels. (NEED TO DOUBLE CHECK THIS? WHICH STATISTIC P VALUE SHOULD WE BE LOOKING AT?)
+
+
 3. How is credit limit associated with likelihood to default? How is credit limit associated with age and education level?
 ```{r}
 
@@ -132,3 +147,104 @@ The above statistical analysis shows us that there is a significant difference i
 ```
 
 6. How does marital status affect probability of defaulting?
+```{r}
+
+```
+
+Visualization of bill amount due vs. payment status
+```{r}
+plot(credit$PAY_1, credit$BILL_AMT1, main='Payment status or deferral by bill amount', xlab='Payment status code', ylab='Bill amount (NT dollar)', col='darkgreen')
+```
+Visualization of bill amount due vs. amount paid
+```{r}
+#par(mfrow=c(3,2))
+ggplot(data=credit)+
+  geom_point(mapping=aes(x=credit$PAY_AMT1, y=credit$BILL_AMT1))+
+  ggtitle('Amount paid vs. Amount Due, Bill 1')+
+  ylab("Bill amount, NT dollars")+
+  xlab("Amount paid, NT dollars")
+ggplot(data=credit)+
+  geom_point(mapping=aes(x=credit$PAY_AMT2, y=credit$BILL_AMT2))+
+  ggtitle('Amount paid vs. Amount Due, Bill 2')+
+  ylab("Bill amount, NT dollars")+
+  xlab("Amount paid, NT dollars")
+ggplot(data=credit)+
+  geom_point(mapping=aes(x=credit$PAY_AMT3, y=credit$BILL_AMT3))+
+  ggtitle('Amount paid vs. Amount Due, Bill 3')+
+  ylab("Bill amount, NT dollars")+
+  xlab("Amount paid, NT dollars")
+ggplot(data=credit)+
+  geom_point(mapping=aes(x=credit$PAY_AMT4, y=credit$BILL_AMT4))+
+  ggtitle('Amount paid vs. Amount Due, Bill 4')+
+  ylab("Bill amount, NT dollars")+
+  xlab("Amount paid, NT dollars")
+ggplot(data=credit)+
+  geom_point(mapping=aes(x=credit$PAY_AMT5, y=credit$BILL_AMT5))+
+  ggtitle('Amount paid vs. Amount Due, Bill 5')+
+  ylab("Bill amount, NT dollars")+
+  xlab("Amount paid, NT dollars")
+ggplot(data=credit)+
+  geom_point(mapping=aes(x=credit$PAY_AMT6, y=credit$BILL_AMT6))+
+  ggtitle('Amount paid vs. Amount Due, Bill 6')+
+  ylab("Bill amount, NT dollars")+
+  xlab("Amount paid, NT dollars")
+
+
+```
+Now all on one plot
+```{r}
+#all on one plot
+ggplot(data=credit)+
+  geom_point(mapping=aes(x=credit$PAY_AMT1, y=credit$BILL_AMT1, col='Bill 1'))+
+  geom_point(mapping=aes(x=credit$PAY_AMT2, y=credit$BILL_AMT2, col='Bill 2'))+
+  geom_point(mapping=aes(x=credit$PAY_AMT3, y=credit$BILL_AMT3, col='Bill 3'))+
+  geom_point(mapping=aes(x=credit$PAY_AMT4, y=credit$BILL_AMT4, col='Bill 4'))+
+  geom_point(mapping=aes(x=credit$PAY_AMT5, y=credit$BILL_AMT5, col='Bill 5'))+
+  geom_point(mapping=aes(x=credit$PAY_AMT6, y=credit$BILL_AMT6, col='Bill 6'))+
+  xlab('Amount paid, NT dollars')+
+  ylab('Bill amount, NT dollars')+
+  ggtitle('Amount paid vs. Amount due, All Bills')+
+  labs(color='Bill Number')
+```
+Is this relationship linear?
+```{r}
+par(mfrow=c(2,2))
+linreg <- lm(PAY_AMT1~BILL_AMT1, data=credit)
+plot(linreg)
+#No, the relationship is nonlinear. It appears to follow an inverse exponential curve.
+```
+Is there a pattern in bill repayment over time? It seems as though people tend to start out paying less of the bill at once, then later on in the billing cycle, they start to pay more than their current bill - to make up for last time?
+
+What about analysis of the total amount due during the 6 months prior, and total amount paid? Who is still in-debt by the time bill 7 rolls around?
+```{r}
+credit_totals<-credit %>% group_by(ID)%>% mutate(totaldue=sum(BILL_AMT1, BILL_AMT2, BILL_AMT3, BILL_AMT4, BILL_AMT5, BILL_AMT6), totalpaid=sum(PAY_AMT1, PAY_AMT2, PAY_AMT3, PAY_AMT4, PAY_AMT5, PAY_AMT6), totaldebt=totaldue-totalpaid)
+head(credit_totals)
+#This new dataframe shows the total due, total paid, and total debt amount at the end of the 6 month period, per person. 
+```
+```{r}
+summary(credit_totals)
+```
+The summary tables show that the mean 'total debt' is \$238,210, with a minimum of a negative amount meaning an overpayment (of \$2,671,514) and a maximum debt of \$4,116,080.
+```{r}
+#Visualize total debt.
+credit_totals$DEFAULT_PAYMENT_NEXT_MONTH<-as.factor(credit_totals$DEFAULT_PAYMENT_NEXT_MONTH)
+
+boxplot(credit_totals$totaldue, credit_totals$totalpaid, credit_totals$totaldebt)
+#Note - this is not how I want to visualize this...having trouble thinking of a better way
+```
+
+```{r}
+ggplot(data=credit_totals)+
+  geom_point(mapping=aes(x=totalpaid, y=totaldue))+
+  ggtitle("6-month total payments vs. total dues")+
+  ylab("Total bill amount due (sum of 6 months, NT dollar)")+
+  xlab("Total amount paid over 6 months, NT dollar")
+```
+Based on the results of this summary graph, it looks like by the end of the study, most people were still in debt to the bank as they owed more than they had paid.
+
+Perhaps we can cluster the respondents into 2 groups: One who is 'in debt' and one who is not?
+```{r}
+
+```
+
+
