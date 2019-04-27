@@ -1,19 +1,13 @@
 ---
 title: "SQL-NoSQL analysis"
 author: "Kathleen DeBrota"
-date: "April 21, 2019"
-output: html_document
+date: "April 24, 2019"
+output: pdf_document
 ---
 
 This document is for some analysis and visualizations of the credit card data set for SQL/NoSQL final project. 
 
 Guiding questions: What kind of person is most likely to default on their credit card payments? What demographic factor(s) are most important in predicting this? 
-
-1. Are younger people more or less likely to default on payments?
-2. Are higher-educated people more or less likely to default?
-3. How is credit limit associated with likelihood to default? How is credit limit associated with age and education level?
-4. At what bill value is someone more likely to default on their payment? Are there any demographic trends that emerge there?
-5. Is the amount of one single bill more influential than whether or not the  person delayed their last bill in deciding whether someone will default?
 
 ```{r}
 library(readxl)
@@ -22,6 +16,11 @@ library(lattice)
 library(rcompanion)
 library(ggplot2)
 library(Rcmdr)
+library(gplots)
+library(corrplot)
+library(factoextra)
+library(rgl)
+library(purrr)
 ```
 
 ```{r}
@@ -47,7 +46,7 @@ boxplot(credit$BILL_AMT1, credit$BILL_AMT2, credit$BILL_AMT3, credit$BILL_AMT4, 
 
 
 ```
-Separate out just those who defaulted and who did not. Visualize general demographic differences
+## Separate those who defaulted and who did not. Visualize general demographic differences.
 ```{r}
 will_default<-subset(credit, DEFAULT_PAYMENT_NEXT_MONTH==1)
 z3countdef<-table(will_default$AGE, will_default$MARRIAGE)
@@ -70,93 +69,169 @@ par(mfrow=c(1,1))
 marriage <-credit %>% group_by(MARRIAGE, DEFAULT_PAYMENT_NEXT_MONTH) %>% count(DEFAULT_PAYMENT_NEXT_MONTH)
 marriage #this shows the counts of people per group.
 
-barchart(marriage$n~marriage$DEFAULT_PAYMENT_NEXT_MONTH, ylab='Number of people', xlab='Payment default status', main='Influence of marital status on default payments', groups=marriage$MARRIAGE, auto.key=list(space='right', title='Marriage status', cex.title=0.8))
+#This is split by payment default status
+ggplot(marriage, aes(fill=MARRIAGE, x=DEFAULT_PAYMENT_NEXT_MONTH, y=n))+
+  geom_bar(stat='identity', position='fill')+
+  ggtitle("Default payment status by marital status")+
+  ylab("Fraction of total")+
+  xlab('Default payment status')+
+  labs(fill='Marital status')
+
+#This is split by marriage status
+ggplot(marriage, aes(fill=DEFAULT_PAYMENT_NEXT_MONTH, x=MARRIAGE, y=n))+
+  geom_bar(stat='identity', position='fill')+
+  ggtitle("Default payment status by marital status")+
+  ylab("Fraction of total")+
+  xlab('Marital status')+
+  labs(fill='Default payment \nstatus')
+
+#barchart(marriage$n~marriage$DEFAULT_PAYMENT_NEXT_MONTH, ylab='Number of people', xlab='Payment default status', main='Influence of marital status on default payments', stacked=TRUE, groups=marriage$MARRIAGE, auto.key=list(space='right', title='Marriage status', cex.title=0.8))
 
 #----------------------------------------------
 
-#View education status of those who did/didn not default.
+#View education status of those who did/did not default.
 education <-credit %>% group_by(EDUCATION, DEFAULT_PAYMENT_NEXT_MONTH) %>% count(DEFAULT_PAYMENT_NEXT_MONTH)
 education #this shows the counts of people per group.
 
-barchart(education$n~education$DEFAULT_PAYMENT_NEXT_MONTH, ylab='Number of people', xlab='Payment default status', main='Influence of educational status on default payments', groups=education$EDUCATION, auto.key=list(space='right', title='Educational status', cex.title=0.8))
+#This is split by education status
+ggplot(education, aes(fill=DEFAULT_PAYMENT_NEXT_MONTH, x=EDUCATION, y=n))+
+  geom_bar(stat='identity', position='fill')+
+  ggtitle("Default payment status by educational status")+
+  ylab("Fraction of total")+
+  xlab('Educational status')+
+  labs(fill='Default payment \nstatus')
+
+#barchart(education$n~education$DEFAULT_PAYMENT_NEXT_MONTH, ylab='Number of people', xlab='Payment default status', main='Influence of educational status on default payments', groups=education$EDUCATION, auto.key=list(space='right', title='Educational status', cex.title=0.8))
 
 
 #What about the link between total bill amount and default status, or total bill amount and how many months they pushed back the payment?
 
+#----------------------------------------------
 
+#View sex of those who did or did not default
 
+sex <-credit %>% group_by(SEX, DEFAULT_PAYMENT_NEXT_MONTH) %>% count(DEFAULT_PAYMENT_NEXT_MONTH)
+sex #this shows the counts of people per group.
+
+#This is split by education status
+ggplot(sex, aes(fill=DEFAULT_PAYMENT_NEXT_MONTH, x=SEX, y=n))+
+  geom_bar(stat='identity', position='fill')+
+  ggtitle("Default payment status by sex")+
+  ylab("Fraction of total")+
+  xlab('Sex')+
+  labs(fill='Default payment \nstatus')
+
+#----------------------------------------------
+
+#View credit limit of defaulters and not defaulters
+
+bwplot(credit$LIMIT_BAL~credit$DEFAULT_PAYMENT_NEXT_MONTH, xlab='Default payment status', ylab='Credit limit, NT dollar', main='Credit limit by default payment status')
 
 ```
-1. Are younger people more or less likely to default on payments?
+## Are younger people more or less likely to default on payments?
 ```{r}
 #Check normalcy of the data
 normalityTest(AGE ~ DEFAULT_PAYMENT_NEXT_MONTH, test="ad.test", data=credit)
-#The data are normally distributed (p<<0.75)
+#The data are NOT normally distributed (p<<0.05)
 #Check heteroscedasticity
 with(credit, tapply(AGE, DEFAULT_PAYMENT_NEXT_MONTH, var, na.rm=TRUE))
 bartlett.test(AGE ~ DEFAULT_PAYMENT_NEXT_MONTH, data=credit)
 #Data are homoscedastic; p<<0.05
 
+#Run a non parametric test to check differences of means
+with(credit, tapply(AGE, DEFAULT_PAYMENT_NEXT_MONTH, median, na.rm=TRUE))
+kruskal.test(AGE ~ DEFAULT_PAYMENT_NEXT_MONTH, data=credit)
 
-#ANOVA to determine difference of mean age in each group (default vs not default)
-AnovaModel.1 <- aov(AGE ~ DEFAULT_PAYMENT_NEXT_MONTH, data=credit)
-summary(AnovaModel.1)
-with(credit, numSummary(AGE, groups=DEFAULT_PAYMENT_NEXT_MONTH, 
-  statistics=c("mean", "sd")))
+# #ANOVA to determine difference of mean age in each group (default vs not default)
+# AnovaModel.1 <- aov(AGE ~ DEFAULT_PAYMENT_NEXT_MONTH, data=credit)
+# summary(AnovaModel.1)
+# with(credit, numSummary(AGE, groups=DEFAULT_PAYMENT_NEXT_MONTH, 
+#   statistics=c("mean", "sd")))
+
 
 ```
-```{r}
-#Tukey test for age difference
-age_signif<-TukeyHSD(AnovaModel.1)
-age_signif
-```
-The above statistical analysis shows us that there is a significant difference in mean age between 'default' and 'will not default' groups: a small difference of 0.3084 years (about 3.7 months), with the slightly younger group tending to default on their payments more often than the slightly older group. 
+the Kruskal-Wallis test shows there is NO significant difference in the mean ages between groups (did and did not default). 
 
 
-2. Are higher-educated people more or less likely to default?
+## Are higher-educated people more or less likely to default?
 ```{r}
-#Performing pearson Chi-sq test of independence - 
-#Actually no, performing the fisher's exact test, since it works better for smaller 'unbalanced' data such as this where some columns have 0 entries.
+#Performing pearson Chi-sq test of independence.
+#Null hypothesis: "education level is independent of whether or not someone will default, at the 0.05 significance level."
 
 #First tabulating the contingency table of the two variables
 educ_conting=table(credit$EDUCATION, credit$DEFAULT_PAYMENT_NEXT_MONTH)
-educ_conting #This gives the counts of each category in each 'axis' specified
-#Null hypothesis: "education level is independent of whether or not someone will default, at the 0.05 significance level."
+educ_conting 
+balloonplot(t(educ_conting), main='Education level frequency by default payment status', xlab='Default payment status', ylab='Educational status', label=FALSE, show.margins=FALSE)
+#This gives the counts of each category in each 'axis' specified
 
-fisher.test(educ_conting, simulate.p.value=TRUE)
+#Chi-squared test
+chi_sq_test<-chisq.test(educ_conting)
+chi_sq_test
+#round(chi_sq_test$expected,2)
 
-#pairwise test
-pairwiseNominalIndependence(educ_conting)
+#To determine the nature of the dependence between rows (education) and columns (payment status), use chi-sq residuals (Pearson residuals)
+chisq_resid<-round(chi_sq_test$residuals,3)
+chisq_resid
+
+#Visualization of the residuals shows the positive (blue) and negative (red) correlations between the row and column variables.
+corrplot(chisq_resid, is.cor=FALSE)
 ```
-The results of the Fisher's Exact test show that there is a highly significant interaction between education level and probability that someone will default on their credit card bill (p<<<0.05). 
+The results of the chi square test show that there is a highly significant interaction between education level and probability that someone will default on their credit card bill (p<<<0.05). 
 
-The pairwise post-hoc test shows significant differences in likelihood of defaulting on credit payments between nearly every pair of education levels. (NEED TO DOUBLE CHECK THIS? WHICH STATISTIC P VALUE SHOULD WE BE LOOKING AT?)
+We can also see from the chi-squared test and analysis of the residuals in the corrplot that there is a strong positive association between those who defult and those with either a high school or undergraduate education. Meanwhile, defaulting is negatively associated with having a graduate education or 'uneducated, other, or unknown' education level.
 
-
-3. How is credit limit associated with likelihood to default? How is credit limit associated with age and education level?
+## How does marital status affect probability of defaulting?
 ```{r}
+#Performing pearson Chi-sq test of independence.
+#Null hypothesis: "marital status is independent of whether or not someone will default, at the 0.05 significance level."
 
+#First tabulating the contingency table of the two variables
+mar_conting=table(credit$MARRIAGE, credit$DEFAULT_PAYMENT_NEXT_MONTH)
+mar_conting 
+balloonplot(t(mar_conting), main='Marital status frequency by default payment status', xlab='Default payment status', ylab='Marital status', label=FALSE, show.margins=FALSE)
+#This gives the counts of each category in each 'axis' specified
+
+#Chi-squared test
+chi_sq_test<-chisq.test(mar_conting)
+chi_sq_test
+#round(chi_sq_test$expected,2)
+
+#To determine the nature of the dependence between rows (education) and columns (payment status), use chi-sq residuals (Pearson residuals)
+chisq_resid<-round(chi_sq_test$residuals,3)
+chisq_resid
+
+#Visualization of the residuals shows the positive (blue) and negative (red) correlations between the row and column variables.
+corrplot(chisq_resid, is.cor=FALSE)
 ```
-
-4. At what bill value is someone more likely to default on their payment? Are there any demographic trends that emerge there?
+## Is default status determined by sex?
 ```{r}
+#Performing pearson Chi-sq test of independence.
+#Null hypothesis: "sex is independent of whether or not someone will default, at the 0.05 significance level."
 
+#First tabulating the contingency table of the two variables
+sex_conting=table(credit$SEX, credit$DEFAULT_PAYMENT_NEXT_MONTH)
+sex_conting 
+balloonplot(t(sex_conting), main='Marital status frequency by default payment status', xlab='Default payment status', ylab='Sex', label=FALSE, show.margins=FALSE)
+#This gives the counts of each category in each 'axis' specified
+
+#Chi-squared test
+chi_sq_test<-chisq.test(sex_conting)
+chi_sq_test
+#round(chi_sq_test$expected,2)
+
+#To determine the nature of the dependence between rows (education) and columns (payment status), use chi-sq residuals (Pearson residuals)
+chisq_resid<-round(chi_sq_test$residuals,3)
+chisq_resid
+
+#Visualization of the residuals shows the positive (blue) and negative (red) correlations between the row and column variables.
+corrplot(chisq_resid, is.cor=FALSE)
 ```
-5. Is the amount of one single bill more influential than whether or not the  person delayed their last bill in deciding whether someone will default?
-```{r}
 
-```
-
-6. How does marital status affect probability of defaulting?
-```{r}
-
-```
-
-Visualization of bill amount due vs. payment status
+## Visualization of bill amount due vs. payment status
 ```{r}
 plot(credit$PAY_1, credit$BILL_AMT1, main='Payment status or deferral by bill amount', xlab='Payment status code', ylab='Bill amount (NT dollar)', col='darkgreen')
 ```
-Visualization of bill amount due vs. amount paid
+## Visualization of bill amount due vs. amount paid
 ```{r}
 #par(mfrow=c(3,2))
 ggplot(data=credit)+
@@ -216,6 +291,7 @@ plot(linreg)
 ```
 Is there a pattern in bill repayment over time? It seems as though people tend to start out paying less of the bill at once, then later on in the billing cycle, they start to pay more than their current bill - to make up for last time?
 
+## Total amounts due and total amounts paid analysis
 What about analysis of the total amount due during the 6 months prior, and total amount paid? Who is still in-debt by the time bill 7 rolls around?
 ```{r}
 credit_totals<-credit %>% group_by(ID)%>% mutate(totaldue=sum(BILL_AMT1, BILL_AMT2, BILL_AMT3, BILL_AMT4, BILL_AMT5, BILL_AMT6), totalpaid=sum(PAY_AMT1, PAY_AMT2, PAY_AMT3, PAY_AMT4, PAY_AMT5, PAY_AMT6), totaldebt=totaldue-totalpaid)
@@ -225,27 +301,91 @@ head(credit_totals)
 ```{r}
 summary(credit_totals)
 ```
-The summary tables show that the mean 'total debt' is \$238,210, with a minimum of a negative amount meaning an overpayment (of \$2,671,514) and a maximum debt of \$4,116,080.
+The summary tables show that the mean 'total debt' is \$238,210, with a minimum of a negative amount meaning an overpayment (of \$2,671,514) and a maximum debt of \$4,116,080. - note these are NT dollars...not US dollars.
 ```{r}
 #Visualize total debt.
 credit_totals$DEFAULT_PAYMENT_NEXT_MONTH<-as.factor(credit_totals$DEFAULT_PAYMENT_NEXT_MONTH)
 
-boxplot(credit_totals$totaldue, credit_totals$totalpaid, credit_totals$totaldebt)
+#barchart(credit_totals$totaldue, credit_totals$totalpaid, credit_totals$totaldebt)
 #Note - this is not how I want to visualize this...having trouble thinking of a better way
 ```
 
 ```{r}
 ggplot(data=credit_totals)+
-  geom_point(mapping=aes(x=totalpaid, y=totaldue))+
+  geom_point(mapping=aes(x=totalpaid, y=totaldue, col=DEFAULT_PAYMENT_NEXT_MONTH))+
   ggtitle("6-month total payments vs. total dues")+
   ylab("Total bill amount due (sum of 6 months, NT dollar)")+
-  xlab("Total amount paid over 6 months, NT dollar")
+  xlab("Total amount paid over 6 months, NT dollar")+
+  labs(color='Default payment \nstatus')
+ 
 ```
-Based on the results of this summary graph, it looks like by the end of the study, most people were still in debt to the bank as they owed more than they had paid.
 
-Perhaps we can cluster the respondents into 2 groups: One who is 'in debt' and one who is not?
+
+## Clustering
+Can we cluster the above graph into two types of people - those who are in debt vs. those who are not?
 ```{r}
+#K-means clustering
 
+#first subset only the numeric columns of the data.
+numeric<-cbind(unlist(lapply(credit, is.numeric)))
+numeric<-credit[,numeric]
+#head(numeric)
+
+#Generate the elbow plot to determine best number of clusters
+model <- kmeans(x=numeric, centers=2)
+model$tot.withinss
+tot_withinss<- map_dbl(1:20, function(k){
+  model <- kmeans(x=numeric, centers=k)
+  model$tot.withinss
+})
+
+elbow_df <- data.frame(
+  k=1:20,
+  tot_withinss=tot_withinss
+)
 ```
+now plot the elbow plot
+```{r}
+ggplot(elbow_df, aes(x=k, y=tot_withinss))+
+  geom_point() +
+  geom_line()+
+  scale_x_continuous(breaks=1:200) +
+  xlim(0,15) +
+  ggtitle("Elbow plot to determine optimim k value")+
+  xlab("Number of clusters, k")+
+  ylab("Total within-cluster-sum-of-squares")
+```
+Based on this plot it looks like 4 clusters is probably ideal.
+Run the k-means clustering with 4 clusters:
+```{r}
+#Running the cluster analysis with 3 clusters.
+km <- kmeans(numeric, centers=3, iter.max=50)
 
+#Visualizing the clusters.
+fviz_cluster(km, numeric, geom=c("point"), show.clust.cent = TRUE)
+```
+This shows the clusters outlined as the kmeans algorithm identified them. The 2 principal components explain 31.1% and 19.4% of the variation in the data respectively. 
+```{r}
+#PCA analysis of these clusters.
+pc<-princomp(numeric, cor=TRUE, scores=TRUE)
+summary(pc)
+plot(pc, type='lines')
+biplot(pc)
+```
+From these plots of the PCA analysis, it looks like there are 3 major components which are making up the majority of the variation in the data. It does appear that all the BILL_AMTs and PAY_#'s (payment statuses) are correlated heavily with each other.
+```{r}
+#plot3d(pc$scores[,1:3], col=as.integer(credit$DEFAULT_PAYMENT_NEXT_MONTH))
+#the above works and makes an awesome graph, but a little hard to interpret since they are components.
 
+plot3d(credit$PAY_1, credit$BILL_AMT1, credit$PAY_AMT1, col=as.integer(credit$DEFAULT_PAYMENT_NEXT_MONTH), xlab='Payment status', ylab='Bill amount', zlab='Payment amount')
+```
+other visualizations of the cluster
+```{r}
+#Visualizing the clusters.
+fviz_pca_ind(pc, geom='point', col.ind=credit$DEFAULT_PAYMENT_NEXT_MONTH)
+```
+```{r}
+#visualize the variables.
+fviz_pca_var(pc)
+```
+We can see the three major variables contributing to the clustering based on the above variable graph: generally, 'payment status', 'bill amount', and 'payment amount'. 
